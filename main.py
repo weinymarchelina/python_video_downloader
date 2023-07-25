@@ -1,8 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
+from PIL import Image, ImageTk
 import customtkinter
 from pytube import YouTube
 import os
+import requests
+from io import BytesIO
 
 def hide_status():
     statusLabel.pack_forget()
@@ -56,6 +59,7 @@ def download_video():
         statusLabel.configure(text=f"{ytObject.title} is downloaded!", text_color="green")
         title.configure(text="Input a Youtube Link")
         searchBtn.pack(padx=10, pady=10)
+        thumbnail_label.pack_forget()
     except:
         statusLabel.configure(text="Download Error!", text_color="red")
         searchBtn.pack(padx=10, pady=10)
@@ -73,9 +77,7 @@ def search_video():
         ytLink = inputLink.get()
         ytObject = YouTube(ytLink, on_progress_callback=on_progress)
         title.configure(text=ytObject.title, text_color="white")
-        # resolutions = [stream.resolution for stream in ytObject.streams.filter(progressive=True)]
         resolutions = [stream.resolution for stream in ytObject.streams]
-
         resolutions = set(list(resolutions))
         resolutions = [res for res in resolutions if res is not None]
         resolutions.sort(key=lambda res: int(res[:-1]), reverse=True)
@@ -83,13 +85,29 @@ def search_video():
         resolutionDropdown['values'] = ()
         resolutionDropdown['values'] = resolutions
 
-        for resolution in resolutions:
-            print(resolution)
+        # for resolution in resolutions:
+        #    print(resolution)
 
         highest_resolution = ytObject.streams.get_highest_resolution().resolution
         resolutionDropdown.set(highest_resolution)
 
+        thumbnail_url = ytObject.thumbnail_url
+        response = requests.get(thumbnail_url)
+        image = Image.open(BytesIO(response.content))
+        image = image.resize((320, 180))
+        thumbnail_image = ImageTk.PhotoImage(image)
+        thumbnail_label.configure(image=thumbnail_image)
+        thumbnail_label.image = thumbnail_image
         
+        inputLink.pack_forget()
+        searchBtn.pack_forget()
+        statusLabel.pack_forget()
+        resolutionDropdown.pack_forget()
+        downloadBtn.pack_forget()
+        thumbnail_label.pack(padx=10, pady=10)
+        inputLink.pack(padx=10, pady=10)
+        searchBtn.pack(padx=10, pady=10)
+
         statusLabel.configure(text="Select the desired resolution", text_color="white")
         statusLabel.pack(padx=10, pady=10)
         resolutionDropdown.pack(padx=10, pady=10)
@@ -111,8 +129,11 @@ app.geometry("720x480") #screen size
 app.title("Youtube Video Downloader")
 
 # adding UI elements: access customtkinter to add element to the UI (added to app variable, with the custom text)
-title = customtkinter.CTkLabel(app, text="Input a YouTube link", font=("Helvetica", 20))
+title = customtkinter.CTkLabel(app, text="Input a YouTube link", font=("Helvetica", 25))
 title.pack(padx=10, pady=10) # add the label element with padding
+
+# image
+thumbnail_label = tk.Label(app)
 
 # link input
 url_var = customtkinter.StringVar()
