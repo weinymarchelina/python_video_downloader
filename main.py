@@ -1,10 +1,11 @@
 import tkinter as tk
+from tkinter import ttk
 import customtkinter
 from pytube import YouTube
 import os
 
 def hide_status():
-    finishLabel.pack_forget()
+    statusLabel.pack_forget()
 
 def on_progress(stream, chunk, bytes_remaining):
     total_size = stream.filesize
@@ -15,7 +16,19 @@ def on_progress(stream, chunk, bytes_remaining):
     progressPercentage.update()
     progressBar.set(float(percentage_of_completion) / 100)
 
+def get_unique_filename(folder, filename, count=1):
+    base, ext = os.path.splitext(filename)
+    new_filename = f"{base}({count}){ext}"
+
+    if os.path.exists(os.path.join(folder, new_filename)):
+        return get_unique_filename(folder, filename, count + 1)
+    else:
+        return new_filename
+
 def download_video():
+    statusLabel.pack_forget()
+    resolutionDropdown.pack_forget()
+    searchBtn.pack_forget()
     downloadBtn.pack_forget()
     progressPercentage.pack(padx=10, pady=10)
     progressBar.pack(padx=10)
@@ -23,28 +36,70 @@ def download_video():
     try:
         ytLink = inputLink.get()
         ytObject = YouTube(ytLink, on_progress_callback=on_progress)
-        video = ytObject.streams.get_highest_resolution()
+        video = ytObject.streams.filter(res=resolutionDropdown.get()).first()
 
         title.configure(text=ytObject.title, text_color="white")
-        finishLabel.configure(text="Input a YouTube link")
+        statusLabel.configure("Downloading...")
 
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
 
-        video.download(output_path="downloads", filename=ytObject.title + ".mp4")
+        desired_filename = f"{ytObject.title}_{selected_resolution.get()}.mp4"
+
+        if os.path.exists(os.path.join("downloads", desired_filename)):
+            unique_filename = get_unique_filename("downloads", desired_filename)
+            video.download(output_path="downloads", filename=unique_filename)
+        else:
+            video.download(output_path="downloads", filename=desired_filename)
 
         url_var.set("")
-        finishLabel.configure(text=f"{ytObject.title} is downloaded!", text_color="green")
+        statusLabel.configure(text=f"{ytObject.title} is downloaded!", text_color="green")
+        title.configure(text="Input a Youtube Link")
+        searchBtn.pack(padx=10, pady=10)
     except:
-        finishLabel.configure(text="Download Error!", text_color="red")
+        statusLabel.configure(text="Download Error!", text_color="red")
+        searchBtn.pack(padx=10, pady=10)
+        resolutionDropdown.pack(padx=10, pady=10)
+        downloadBtn.pack(padx=10, pady=10)
 
-    finishLabel.pack(padx=10, pady=10)
+    statusLabel.pack(padx=10, pady=10)
     app.after(3000, hide_status)
-    title.configure(text="Input a Youtube Link")
     progressPercentage.pack_forget()
     progressBar.pack_forget()
-    downloadBtn.pack(padx=10, pady=10)
     
+    
+def search_video():
+    try:
+        ytLink = inputLink.get()
+        ytObject = YouTube(ytLink, on_progress_callback=on_progress)
+        title.configure(text=ytObject.title, text_color="white")
+        # resolutions = [stream.resolution for stream in ytObject.streams.filter(progressive=True)]
+        resolutions = [stream.resolution for stream in ytObject.streams]
+
+        resolutions = set(list(resolutions))
+        resolutions = [res for res in resolutions if res is not None]
+        resolutions.sort(key=lambda res: int(res[:-1]), reverse=True)
+
+        resolutionDropdown['values'] = ()
+        resolutionDropdown['values'] = resolutions
+
+        for resolution in resolutions:
+            print(resolution)
+
+        highest_resolution = ytObject.streams.get_highest_resolution().resolution
+        resolutionDropdown.set(highest_resolution)
+
+        
+        statusLabel.configure(text="Select the desired resolution", text_color="white")
+        statusLabel.pack(padx=10, pady=10)
+        resolutionDropdown.pack(padx=10, pady=10)
+        downloadBtn.pack(padx=10, pady=10)
+        
+    except:
+        statusLabel.configure(text="Please enter a valid link", text_color="white")
+        app.after(3000, hide_status)
+        downloadBtn.pack_forget()
+
 
 # system settings
 customtkinter.set_appearance_mode("System")
@@ -65,16 +120,28 @@ inputLink = customtkinter.CTkEntry(app, width=350, height=40, textvariable=url_v
 inputLink.pack()
 
 # finished downloading
-finishLabel = customtkinter.CTkLabel(app, text="")
+statusLabel = customtkinter.CTkLabel(app, text="")
 
 # progress percentage
 progressPercentage = customtkinter.CTkLabel(app, text="0%")
 progressBar = customtkinter.CTkProgressBar(app, width=400)
 progressBar.set(0)
 
+def combobox_callback(choice):
+    print("combobox dropdown clicked:", choice)
+
+selected_resolution = tk.StringVar() 
+
+# Create the Combobox widget for resolution selection
+resolutionDropdown = ttk.Combobox(app, values=(), textvariable=selected_resolution)
+
+# search button
+searchBtn = customtkinter.CTkButton(app, text="Search", command=search_video)
+searchBtn.pack(padx=10, pady=10)
+
 # download button
 downloadBtn = customtkinter.CTkButton(app, text="Download", command=download_video)
-downloadBtn.pack(padx=10, pady=10)
+# downloadBtn.pack(padx=10, pady=10)
 
 # run app
 app.mainloop()
